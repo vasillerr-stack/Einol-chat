@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Enjol Messenger Pro</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --tg-bg: #0e1621;
+            --tg-side: #17212b;
+            --tg-active: #242f3d;
+            --tg-text: #ffffff;
+            --tg-hint: #7f91a4;
+            --tg-blue: #5288c1;
+            --tg-out-msg: #2b5278;
+            --tg-in-msg: #182533;
+            --tg-admin: #ef5350;
+        }
+
+        * { box-sizing: border-box; outline: none; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Inter', sans-serif; background: var(--tg-bg); color: var(--tg-text); overflow: hidden; }
+
+        #auth-screen { position: fixed; inset: 0; background: var(--tg-bg); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+        .auth-card { background: var(--tg-side); padding: 40px 30px; border-radius: 20px; text-align: center; width: 90%; max-width: 360px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        
+        .auth-card input { width: 100%; padding: 14px; margin: 8px 0; background: #0e1621; border: 1px solid #242f3d; color: white; border-radius: 12px; font-size: 16px; text-align: center; }
+        
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+        .auth-card button { flex: 1; padding: 14px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; transition: 0.3s; }
+        
+        .btn-primary { background: var(--tg-blue); color: white; }
+        .btn-secondary { background: var(--tg-active); color: var(--tg-blue); border: 1px solid var(--tg-blue) !important; }
+        .auth-card button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Стили чата как в прошлом варианте */
+        #app { display: none; height: 100vh; grid-template-columns: 350px 1fr; }
+        .sidebar { background: var(--tg-side); border-right: 1px solid #0e1621; display: flex; flex-direction: column; }
+        .side-header { padding: 15px 20px; display: flex; justify-content: space-between; border-bottom: 1px solid #0e1621; }
+        .messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 1; }
+        .chat-window { display: flex; flex-direction: column; position: relative; background: var(--tg-bg); }
+        .msg { max-width: 75%; padding: 8px 12px; border-radius: 16px; font-size: 15px; margin: 2px 0; }
+        .msg.in { align-self: flex-start; background: var(--tg-in-msg); }
+        .msg.out { align-self: flex-end; background: var(--tg-out-msg); }
+        .input-container { background: var(--tg-side); padding: 15px; display: flex; gap: 10px; }
+        .input-wrapper { flex: 1; background: #0e1621; border-radius: 20px; padding: 5px 15px; }
+        .input-wrapper input { background: transparent; border: none; color: white; width: 100%; padding: 8px 0; }
+        .send-btn { color: var(--tg-blue); font-weight: 600; cursor: pointer; align-self: center; }
+    </style>
+</head>
+<body>
+
+<div id="auth-screen">
+    <div class="auth-card">
+        <div style="font-size: 40px; margin-bottom: 10px;">✉️</div>
+        <h2>Enjol Pro</h2>
+        <p id="auth-desc" style="color: var(--tg-hint); font-size: 13px;">Введите почту для входа или регистрации</p>
+        
+        <input type="email" id="user-email" placeholder="Email (example@mail.com)">
+        <input type="text" id="user-nick" placeholder="Ваш ник (только при регистрации)">
+        
+        <div class="btn-group">
+            <button class="btn-secondary" id="reg-btn" onclick="handleAuth('reg')">Регистрация</button>
+            <button class="btn-primary" id="login-btn" onclick="handleAuth('login')">Войти</button>
+        </div>
+        <p id="info-msg" style="margin-top: 15px; font-size: 12px; color: #4caf50; display: none;"></p>
+    </div>
+</div>
+
+<div id="app">
+    <div class="sidebar">
+        <div class="side-header">
+            <strong>Чаты</strong>
+            <span onclick="logout()" style="cursor:pointer; color:var(--tg-hint); font-size: 12px;">Выход</span>
+        </div>
+        <div style="padding: 20px; color: var(--tg-hint); font-size: 14px;">Общий архив</div>
+    </div>
+    <div class="chat-window">
+        <div class="messages" id="msg-container"></div>
+        <div class="input-container">
+            <div class="input-wrapper"><input type="text" id="m-input" placeholder="Сообщение..."></div>
+            <div class="send-btn" onclick="sendMsg()">ОТПРАВИТЬ</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyBoFqIEnH2J-d0dBe9FJ7cQWATr9n5fKDk",
+        authDomain: "einol-6fbf6.firebaseapp.com",
+        projectId: "einol-6fbf6",
+        storageBucket: "einol-6fbf6.firebasestorage.app",
+        messagingSenderId: "430869133379",
+        appId: "1:430869133379:web:6c6ca70527c521b98ffcf6"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+
+    // 1. ПРОВЕРКА ССЫЛКИ ИЗ ПОЧТЫ
+    if (auth.isSignInWithEmailLink(window.location.href)) {
+        let email = window.localStorage.getItem('emailForSignIn');
+        if (!email) {
+            email = window.prompt('Пожалуйста, введите ваш email еще раз для подтверждения:');
+        }
+        auth.signInWithEmailLink(email, window.location.href)
+            .then((result) => {
+                window.localStorage.removeItem('emailForSignIn');
+                const nick = window.localStorage.getItem('tempNick');
+                if (nick) {
+                    result.user.updateProfile({ displayName: nick });
+                }
+            })
+            .catch((error) => alert("Ошибка входа: " + error.message));
+    }
+
+    // 2. СЛУШАТЕЛЬ ВХОДА
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('app').style.display = 'grid';
+            loadMessages(user.displayName);
+        }
+    });
+
+    // 3. ОТПРАВКА ССЫЛКИ НА ПОЧТУ
+    function handleAuth(type) {
+        const email = document.getElementById('user-email').value;
+        const nick = document.getElementById('user-nick').value;
+        const info = document.getElementById('info-msg');
+
+        if (!email) return alert("Введите почту!");
+        if (type === 'reg' && !nick) return alert("Для регистрации нужен ник!");
+
+        const actionCodeSettings = {
+            url: window.location.href, // Вернуться на этот же сайт после клика
+            handleCodeInApp: true
+        };
+
+        auth.sendSignInLinkToEmail(email, actionCodeSettings)
+            .then(() => {
+                window.localStorage.setItem('emailForSignIn', email);
+                if(type === 'reg') window.localStorage.setItem('tempNick', nick);
+                
+                info.innerText = "Письмо отправлено! Проверьте почту (и папку Спам). Ссылка действует 15 минут.";
+                info.style.display = "block";
+            })
+            .catch(error => alert(error.message));
+    }
+
+    // Остальные функции чата (отправка, загрузка)
+    function sendMsg() {
+        const input = document.getElementById('m-input');
+        if (!input.value.trim()) return;
+        db.collection("messages").add({
+            user: auth.currentUser.displayName || "Аноним",
+            text: input.value,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        input.value = "";
+    }
+
+    function loadMessages(myName) {
+        db.collection("messages").orderBy("timestamp", "asc").onSnapshot(snap => {
+            const cont = document.getElementById('msg-container');
+            cont.innerHTML = "";
+            snap.forEach(doc => {
+                const d = doc.data();
+                const div = document.createElement('div');
+                div.className = `msg ${d.user === myName ? 'out' : 'in'}`;
+                div.innerHTML = `<div style="font-size:10px; opacity:0.6">${d.user}</div>${d.text}`;
+                cont.appendChild(div);
+            });
+            cont.scrollTop = cont.scrollHeight;
+        });
+    }
+
+    function logout() { auth.signOut().then(() => location.reload()); }
+</script>
+</body>
+</html>
