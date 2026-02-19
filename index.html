@@ -41,13 +41,19 @@
             100% { background-position: 0% 50%; }
         }
 
-        /* Утилиты Глассморфизма */
         .glass {
             background: var(--glass-bg);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid var(--glass-border);
         }
+
+        /* --- Всплывающие уведомления (Toasts) --- */
+        #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; width: 90%; max-width: 400px; pointer-events: none; }
+        .toast { background: rgba(20,25,40,0.95); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); color: white; padding: 15px 20px; border-radius: 20px; font-size: 13px; font-weight: 500; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); animation: slideDown 0.4s ease forwards; }
+        .toast.error { border-left: 4px solid #ff4d4d; }
+        .toast.success { border-left: 4px solid #00ff88; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 
         /* --- Авторизация --- */
         #auth-screen { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; }
@@ -67,13 +73,13 @@
         
         .sidebar { border-right: 1px solid var(--glass-border); display: flex; flex-direction: column; z-index: 10; }
         .side-header { padding: 20px; border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center; }
-        .search-box { padding: 15px; }
-        .search-box input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); padding: 12px; border-radius: 12px; color: white; font-size: 13px; }
+        .search-box { padding: 15px; border-bottom: 1px solid var(--glass-border); }
+        .search-box input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); padding: 12px; border-radius: 12px; color: white; font-size: 13px; }
         
         .chat-list { flex: 1; overflow-y: auto; padding: 10px; }
         .chat-item { padding: 12px; display: flex; align-items: center; gap: 15px; cursor: pointer; border-radius: 12px; transition: 0.2s; margin-bottom: 5px; }
         .chat-item:hover { background: rgba(255,255,255,0.05); }
-        .avatar { width: 45px; height: 45px; background: linear-gradient(45deg, #ff007f, #ff8c00); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .avatar { width: 45px; height: 45px; background: linear-gradient(45deg, #ff007f, #ff8c00); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); flex-shrink: 0; }
         
         .chat-window { display: flex; flex-direction: column; position: relative; }
         .chat-header { padding: 15px 20px; border-bottom: 1px solid var(--glass-border); display: flex; align-items: center; gap: 15px; background: rgba(0,0,0,0.2); backdrop-filter: blur(10px); z-index: 5;}
@@ -99,14 +105,38 @@
             100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 127, 0); }
         }
 
-        /* Кастомный скроллбар */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+
+        /* --- МОБИЛЬНАЯ АДАПТАЦИЯ (ДОБАВЛЕНО) --- */
+        .back-btn { display: none; background: transparent; border: none; color: white; font-size: 24px; cursor: pointer; margin-right: 5px; }
+        @media (max-width: 768px) {
+            #app { grid-template-columns: 100%; }
+            .sidebar { width: 100%; }
+            .chat-window { display: none; width: 100%; }
+            .sidebar.hidden-mobile { display: none; }
+            .chat-window.active-mobile { display: flex; height: 100vh; }
+            .back-btn { display: block; }
+            .msg { max-width: 85%; }
+            .auth-card { padding: 30px 20px; }
+            .input-area { padding: 10px 15px; }
+        }
     </style>
 </head>
 <body>
+
+<div id="toast-container"></div>
+
+<div id="channel-modal" class="glass" style="display: none; position: fixed; inset: 0; z-index: 2000; align-items: center; justify-content: center;">
+    <div class="auth-card glass">
+        <h3 style="margin-bottom: 15px;">Создать Канал</h3>
+        <input type="text" id="channel-name" placeholder="Название (например #memes)">
+        <button class="btn-main" onclick="createChannel()">Создать</button>
+        <button class="btn-main" style="background: transparent; border: 1px solid var(--glass-border); margin-top: 10px;" onclick="closeModal()">Отмена</button>
+    </div>
+</div>
 
 <div id="auth-screen" class="glass">
     <div class="auth-card glass">
@@ -121,7 +151,7 @@
 </div>
 
 <div id="app">
-    <div class="sidebar glass">
+    <div class="sidebar glass" id="sidebar">
         <div class="side-header">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div class="avatar" id="my-avatar" style="width: 35px; height: 35px; font-size: 14px;">?</div>
@@ -130,13 +160,20 @@
             <span onclick="logout()" style="cursor:pointer; font-size:20px;" title="Выход">🚪</span>
         </div>
         <div class="search-box">
-            <input type="text" id="friend-search" placeholder="🔍 Найти друга по @нику..." onkeypress="if(event.key==='Enter') addFriend()">
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="friend-search" placeholder="Найти друга (@ник) или канал (#имя)..." onkeypress="if(event.key==='Enter') searchTarget()">
+                <button class="icon-btn" onclick="searchTarget()" style="background: var(--accent); color: white; width: 42px; height: 42px;">🔍</button>
+            </div>
+            <div style="margin-top: 15px; font-size: 12px; color: var(--accent); text-align: center; cursor: pointer; font-weight: 600;" onclick="openModal()">
+                + СОЗДАТЬ СВОЙ КАНАЛ
+            </div>
         </div>
         <div class="chat-list" id="chat-list"></div>
     </div>
     
-    <div class="chat-window">
+    <div class="chat-window" id="chat-window">
         <div class="chat-header glass" id="chat-header" style="display: none;">
+            <button class="back-btn" onclick="closeChatMobile()">⬅️</button>
             <div class="avatar" id="chat-avatar">?</div>
             <h3 id="chat-title" style="margin: 0; font-weight: 600;">Выберите чат</h3>
         </div>
@@ -153,7 +190,7 @@
             
             <input type="text" id="m-input" placeholder="Напишите сообщение..." onkeypress="if(event.key==='Enter') sendMsg()">
             
-            <button class="icon-btn" id="mic-btn" onmousedown="startRecording()" onmouseup="stopRecording()" title="Удерживайте для записи ГС">🎤</button>
+            <button class="icon-btn" id="mic-btn" onmousedown="startRecording()" onmouseup="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()" title="Удерживайте для записи ГС">🎤</button>
             
             <button class="icon-btn" style="color: var(--accent);" onclick="sendMsg()" title="Отправить">➤</button>
         </div>
@@ -161,7 +198,6 @@
 </div>
 
 <script>
-    // ТВОИ НАСТРОЙКИ (не менял)
     const firebaseConfig = {
         apiKey: "AIzaSyBoFqIEnH2J-d0dBe9FJ7cQWATr9n5fKDk",
         authDomain: "einol-6fbf6.firebaseapp.com",
@@ -174,13 +210,34 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
     const auth = firebase.auth();
-    const storage = firebase.storage(); // Подключили хранилище для фото и гс
+    const storage = firebase.storage();
 
     let isRegMode = false;
     let currentChatId = null;
-    let currentFriendNick = "";
+    let isCurrentChatChannel = false;
 
-    // --- Авторизация (БЕЗ ПОДТВЕРЖДЕНИЯ ПОЧТЫ) ---
+    // --- НОВОЕ: Всплывающие уведомления ---
+    function showToast(msg, type = 'success') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerText = msg;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-20px)';
+            toast.style.transition = '0.4s';
+            setTimeout(() => toast.remove(), 400);
+        }, 3000);
+    }
+
+    // --- Мобильная логика ---
+    function closeChatMobile() {
+        document.getElementById('sidebar').classList.remove('hidden-mobile');
+        document.getElementById('chat-window').classList.remove('active-mobile');
+        currentChatId = null;
+    }
+
     function setAuthInfo(text, color) {
         const info = document.getElementById('auth-info');
         info.innerText = text;
@@ -210,17 +267,13 @@
         try {
             if (isRegMode) {
                 if (!nick.startsWith('@')) throw new Error("Ник должен начинаться с символа @");
-                
-                // Создаем аккаунт
                 const res = await auth.createUserWithEmailAndPassword(email, pass);
                 await res.user.updateProfile({ displayName: nick });
                 await db.collection("users").doc(res.user.uid).set({ email, nick, uid: res.user.uid });
-                
-                // СРАЗУ пускаем внутрь, никаких писем!
-                setAuthInfo("Успешно! Заходим...", "#00ff88");
+                showToast("Аккаунт успешно создан!", "success");
             } else {
-                // Просто логинимся
                 await auth.signInWithEmailAndPassword(email, pass);
+                showToast("Успешный вход!", "success");
             }
         } catch (e) { 
             let msg = e.message;
@@ -228,6 +281,7 @@
             if (e.code === 'auth/wrong-password') msg = "Неверный пароль";
             if (e.code === 'auth/user-not-found') msg = "Аккаунт не найден";
             setAuthInfo(msg, "#ff4d4d");
+            showToast(msg, "error");
             btn.disabled = false;
         }
     }
@@ -235,7 +289,7 @@
     auth.onAuthStateChanged(user => {
         if (user) {
             document.getElementById('auth-screen').style.display = 'none';
-            document.getElementById('app').style.display = 'grid';
+            document.getElementById('app').style.display = 'grid'; // На мобилках CSS перехватит на flex
             document.getElementById('my-name').innerText = user.displayName || "User";
             document.getElementById('my-avatar').innerText = (user.displayName || "?")[1].toUpperCase();
             loadChats();
@@ -246,33 +300,89 @@
         }
     });
 
-    // --- Система друзей и чатов ---
-    async function addFriend() {
-        const nick = document.getElementById('friend-search').value.trim();
-        if (!nick) return;
+    // --- НОВОЕ: Универсальный поиск (Друзья и Каналы) ---
+    async function searchTarget() {
+        const query = document.getElementById('friend-search').value.trim(); // Очистка от пробелов!
+        if (!query) return;
         
         try {
-            const snapshot = await db.collection("users").where("nick", "==", nick).get();
-            if (snapshot.empty) return alert("Пользователь с таким ником не найден!");
+            if (query.startsWith('#')) {
+                // Поиск канала
+                const snap = await db.collection("chats").where("isChannel", "==", true).where("name", "==", query).get();
+                if (snap.empty) return showToast("Канал не найден. Создайте его!", "error");
+                
+                const channelId = snap.docs[0].id;
+                const channelData = snap.docs[0].data();
+                
+                if (!channelData.users.includes(auth.currentUser.uid)) {
+                    await db.collection("chats").doc(channelId).update({
+                        users: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid)
+                    });
+                    showToast("Вы успешно вступили в канал!", "success");
+                } else {
+                    showToast("Вы уже состоите в этом канале", "success");
+                }
+                document.getElementById('friend-search').value = "";
+                openChat(channelId, channelData.name, true);
+                
+            } else if (query.startsWith('@')) {
+                // Поиск пользователя
+                const snapshot = await db.collection("users").where("nick", "==", query).get();
+                if (snapshot.empty) return showToast("Пользователь не найден. Проверьте правильность ника (большие/маленькие буквы)!", "error");
 
-            const friend = snapshot.docs[0].data();
-            const myUid = auth.currentUser.uid;
-            if (myUid === friend.uid) return alert("Нельзя добавить самого себя!");
-            
-            const chatId = myUid < friend.uid ? myUid + "_" + friend.uid : friend.uid + "_" + myUid;
+                const friend = snapshot.docs[0].data();
+                const myUid = auth.currentUser.uid;
+                if (myUid === friend.uid) return showToast("Нельзя добавить самого себя!", "error");
+                
+                const chatId = myUid < friend.uid ? myUid + "_" + friend.uid : friend.uid + "_" + myUid;
 
-            await db.collection("chats").doc(chatId).set({
-                users: [myUid, friend.uid],
-                nicks: [auth.currentUser.displayName, friend.nick]
-            }, { merge: true });
-            
-            document.getElementById('friend-search').value = "";
-            alert("Чат создан! Теперь он появится слева.");
+                await db.collection("chats").doc(chatId).set({
+                    users: firebase.firestore.FieldValue.arrayUnion(myUid, friend.uid),
+                    nicks: [auth.currentUser.displayName, friend.nick],
+                    isChannel: false
+                }, { merge: true });
+                
+                document.getElementById('friend-search').value = "";
+                showToast("Чат создан! Он появился в списке.", "success");
+            } else {
+                showToast("Введите @ник друга или #имя канала", "error");
+            }
         } catch (e) {
-            alert("Ошибка при поиске: " + e.message);
+            showToast("Ошибка при поиске: " + e.message, "error");
         }
     }
 
+    // --- НОВОЕ: Создание каналов ---
+    function openModal() { document.getElementById('channel-modal').style.display = 'flex'; }
+    function closeModal() { document.getElementById('channel-modal').style.display = 'none'; }
+    
+    async function createChannel() {
+        let name = document.getElementById('channel-name').value.trim();
+        if (!name) return showToast("Введите название канала!", "error");
+        if (!name.startsWith('#')) name = '#' + name;
+
+        try {
+            const snap = await db.collection("chats").where("isChannel", "==", true).where("name", "==", name).get();
+            if (!snap.empty) return showToast("Канал с таким именем уже занят!", "error");
+
+            const myUid = auth.currentUser.uid;
+            await db.collection("chats").add({
+                isChannel: true,
+                name: name,
+                users: [myUid],
+                admin: myUid,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            closeModal();
+            document.getElementById('channel-name').value = "";
+            showToast("Канал успешно создан!", "success");
+        } catch(e) {
+            showToast("Ошибка: " + e.message, "error");
+        }
+    }
+
+    // --- Обновленная загрузка чатов (с поддержкой каналов) ---
     function loadChats() {
         db.collection("chats").where("users", "array-contains", auth.currentUser.uid)
         .onSnapshot(snap => {
@@ -280,27 +390,45 @@
             list.innerHTML = "";
             snap.forEach(doc => {
                 const data = doc.data();
-                const friendNick = data.nicks.find(n => n !== auth.currentUser.displayName);
+                let displayName = "";
+                let displayAvatar = "";
+                let isChannel = false;
+
+                if (data.isChannel) {
+                    displayName = data.name;
+                    displayAvatar = "📢";
+                    isChannel = true;
+                } else {
+                    displayName = data.nicks.find(n => n !== auth.currentUser.displayName) || data.nicks[0];
+                    displayAvatar = displayName.length > 1 ? displayName[1].toUpperCase() : "?";
+                }
+
                 const item = document.createElement('div');
                 item.className = "chat-item glass";
                 item.innerHTML = `
-                    <div class="avatar">${friendNick[1].toUpperCase()}</div>
-                    <div style="font-weight: 500;">${friendNick}</div>
+                    <div class="avatar">${displayAvatar}</div>
+                    <div style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${displayName}</div>
                 `;
-                item.onclick = () => openChat(doc.id, friendNick);
+                item.onclick = () => openChat(doc.id, displayName, isChannel);
                 list.appendChild(item);
             });
         });
     }
 
-    function openChat(id, friendNick) {
+    function openChat(id, name, isChannel) {
         currentChatId = id;
-        currentFriendNick = friendNick;
+        isCurrentChatChannel = isChannel;
         
+        // Мобильная адаптация переключения окон
+        if (window.innerWidth <= 768) {
+            document.getElementById('sidebar').classList.add('hidden-mobile');
+            document.getElementById('chat-window').classList.add('active-mobile');
+        }
+
         document.getElementById('chat-header').style.display = 'flex';
         document.getElementById('input-area').style.display = 'flex';
-        document.getElementById('chat-title').innerText = friendNick;
-        document.getElementById('chat-avatar').innerText = friendNick[1].toUpperCase();
+        document.getElementById('chat-title').innerText = name;
+        document.getElementById('chat-avatar').innerText = isChannel ? "📢" : (name.length > 1 ? name[1].toUpperCase() : "?");
 
         db.collection("chats").doc(id).collection("messages").orderBy("timestamp", "asc")
         .onSnapshot(snap => {
@@ -311,23 +439,27 @@
                 const div = document.createElement('div');
                 div.className = `msg ${d.sender === auth.currentUser.uid ? 'out' : 'in'}`;
                 
-                // Отрисовка в зависимости от типа сообщения
+                let html = '';
+                // Показывать имя отправителя в каналах, если это не ты
+                if (isChannel && d.sender !== auth.currentUser.uid && d.senderNick) {
+                    html += `<div style="font-size: 11px; color: var(--accent); margin-bottom: 5px; font-weight: 600;">${d.senderNick}</div>`;
+                }
+
                 if (d.type === 'image') {
-                    div.innerHTML = `<img src="${d.url}" onclick="window.open('${d.url}', '_blank')">`;
+                    html += `<img src="${d.url}" onclick="window.open('${d.url}', '_blank')">`;
                 } else if (d.type === 'audio') {
-                    div.innerHTML = `<audio controls src="${d.url}"></audio>`;
+                    html += `<audio controls src="${d.url}"></audio>`;
                 } else {
-                    div.innerText = d.text;
+                    html += d.text;
                 }
                 
+                div.innerHTML = html;
                 cont.appendChild(div);
             });
             cont.scrollTop = cont.scrollHeight;
         });
     }
 
-    // --- Отправка сообщений (Текст, Фото, ГС) ---
-    
     // Текст
     function sendMsg() {
         const input = document.getElementById('m-input');
@@ -337,6 +469,7 @@
             type: 'text',
             text: input.value,
             sender: auth.currentUser.uid,
+            senderNick: auth.currentUser.displayName, // Нужно для каналов
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
         input.value = "";
@@ -347,6 +480,7 @@
         const file = event.target.files[0];
         if (!file || !currentChatId) return;
         
+        showToast("Загрузка фото...", "success");
         const fileRef = storage.ref(`chats/${currentChatId}/images/${Date.now()}_${file.name}`);
         try {
             const snapshot = await fileRef.put(file);
@@ -356,14 +490,15 @@
                 type: 'image',
                 url: url,
                 sender: auth.currentUser.uid,
+                senderNick: auth.currentUser.displayName,
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
         } catch (e) {
-            alert("Ошибка загрузки фото: " + e.message);
+            showToast("Ошибка загрузки фото: " + e.message, "error");
         }
     }
 
-    // Голосовые сообщения (ГС)
+    // ГС
     let mediaRecorder;
     let audioChunks = [];
 
@@ -376,6 +511,7 @@
             
             mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
             mediaRecorder.onstop = async () => {
+                showToast("Отправка ГС...", "success");
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 const fileRef = storage.ref(`chats/${currentChatId}/audio/${Date.now()}.webm`);
                 
@@ -387,17 +523,18 @@
                         type: 'audio',
                         url: url,
                         sender: auth.currentUser.uid,
+                        senderNick: auth.currentUser.displayName,
                         timestamp: firebase.firestore.FieldValue.serverTimestamp()
                     });
                 } catch (e) {
-                    alert("Ошибка загрузки ГС: " + e.message);
+                    showToast("Ошибка загрузки ГС: " + e.message, "error");
                 }
             };
             
             mediaRecorder.start();
             document.getElementById('mic-btn').classList.add('recording');
         } catch (e) {
-            alert("Нет доступа к микрофону!");
+            showToast("Нет доступа к микрофону! Разрешите в настройках.", "error");
         }
     }
 
