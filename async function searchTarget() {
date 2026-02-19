@@ -302,55 +302,79 @@
 
     // --- НОВОЕ: Универсальный поиск (Друзья и Каналы) ---
     async function searchTarget() {
-        const query = document.getElementById('friend-search').value.trim(); // Очистка от пробелов!
-        if (!query) return;
-        
-        try {
-            if (query.startsWith('#')) {
-                // Поиск канала
-                const snap = await db.collection("chats").where("isChannel", "==", true).where("name", "==", query).get();
-                if (snap.empty) return showToast("Канал не найден. Создайте его!", "error");
-                
-                const channelId = snap.docs[0].id;
-                const channelData = snap.docs[0].data();
-                
-                if (!channelData.users.includes(auth.currentUser.uid)) {
-                    await db.collection("chats").doc(channelId).update({
-                        users: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid)
-                    });
-                    showToast("Вы успешно вступили в канал!", "success");
-                } else {
-                    showToast("Вы уже состоите в этом канале", "success");
-                }
-                document.getElementById('friend-search').value = "";
-                openChat(channelId, channelData.name, true);
-                
-            } else if (query.startsWith('@')) {
-                // Поиск пользователя
-                const snapshot = await db.collection("users").where("nick", "==", query).get();
-                if (snapshot.empty) return showToast("Пользователь не найден. Проверьте правильность ника (большие/маленькие буквы)!", "error");
+    let query = document.getElementById('friend-search').value.trim();
+    if (!query) return;
+    
+    showToast("Ищу: " + query, "success");
 
-                const friend = snapshot.docs[0].data();
-                const myUid = auth.currentUser.uid;
-                if (myUid === friend.uid) return showToast("Нельзя добавить самого себя!", "error");
-                
-                const chatId = myUid < friend.uid ? myUid + "_" + friend.uid : friend.uid + "_" + myUid;
+    try {
+        if (query.startsWith('#')) {
+            // ПОИСК КАНАЛА
+            // Убираем зависимость от сложного индекса для начала, ищем просто по имени
+            const snap = await db.collection("chats")
+                .where("name", "==", query)
+                .limit(1)
+                .get();
 
-                await db.collection("chats").doc(chatId).set({
-                    users: firebase.firestore.FieldValue.arrayUnion(myUid, friend.uid),
-                    nicks: [auth.currentUser.displayName, friend.nick],
-                    isChannel: false
-                }, { merge: true });
-                
-                document.getElementById('friend-search').value = "";
-                showToast("Чат создан! Он появился в списке.", "success");
-            } else {
-                showToast("Введите @ник друга или #имя канала", "error");
+            if (snap.empty) {
+                return showToast("Канал " + query + " не найден", "error");
             }
-        } catch (e) {
-            showToast("Ошибка при поиске: " + e.message, "error");
+            
+            const channelId = snap.docs[0].id;
+            const channelData = snap.docs[0].data();
+
+            if (!channelData.isChannel) return showToast("Это не канал", "error");
+
+            if (!channelData.users.includes(auth.currentUser.uid)) {
+                await db.collection("chats").doc(channelId).update({
+                    users: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid)
+                });
+                showToast("Вы вступили в канал!", "success");
+            }
+            
+            document.getElementById('friend-search').value = "";
+            openChat(channelId, channelData.name, true);
+
+        } else if (query.startsWith('@')) {
+            // ПОИСК ДРУГА
+            // ВАЖНО: Вводи ник ТОЧЬ-В-ТОЧЬ как при регистрации (соблюдай большие буквы!)
+            const snapshot = await db.collection("users")
+                .where("nick", "==", query)
+                .get();
+
+            if (snapshot.empty) {
+                return showToast("Пользователь " + query + " не найден. Проверьте большие/маленькие буквы!", "error");
+            }
+
+            const friend = snapshot.docs[0].data();
+            const myUid = auth.currentUser.uid;
+
+            if (myUid === friend.uid) {
+                return showToast("Это ваш собственный ник", "error");
+            }
+            
+            // Генерируем ID чата
+            const chatId = myUid < friend.uid ? myUid + "_" + friend.uid : friend.uid + "_" + myUid;
+
+            await db.collection("chats").doc(chatId).set({
+                users: firebase.firestore.FieldValue.arrayUnion(myUid, friend.uid),
+                nicks: [auth.currentUser.displayName, friend.nick],
+                isChannel: false
+            }, { merge: true });
+            
+            document.getElementById('friend-search').value = "";
+            showToast("Чат с " + friend.nick + " открыт!", "success");
+            openChat(chatId, friend.nick, false);
+
+        } else {
+            showToast("Начни с @ (друг) или # (канал)", "error");
         }
+    } catch (e) {
+        console.error(e);
+        // Если выскочит ошибка про Индексы, в консоли (F12) будет ссылка - нажми на неё и индекс создастся сам!
+        showToast("Ошибка базы: " + e.message, "error");
     }
+}
 
     // --- НОВОЕ: Создание каналов ---
     function openModal() { document.getElementById('channel-modal').style.display = 'flex'; }
@@ -549,3 +573,4 @@
 </script>
 </body>
 </html>
+
