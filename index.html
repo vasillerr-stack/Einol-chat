@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Enjol Messenger Pro</title>
+    <title>Enjol Messenger Stack</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
@@ -12,79 +12,74 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --tg-bg: #0e1621;
-            --tg-side: #17212b;
-            --tg-active: #242f3d;
-            --tg-text: #ffffff;
-            --tg-hint: #7f91a4;
-            --tg-blue: #5288c1;
-            --tg-out-msg: #2b5278;
-            --tg-in-msg: #182533;
-            --tg-admin: #ef5350;
+            --tg-bg: #0e1621; --tg-side: #17212b; --tg-active: #242f3d;
+            --tg-text: #ffffff; --tg-hint: #7f91a4; --tg-blue: #5288c1;
+            --tg-out-msg: #2b5278; --tg-in-msg: #182533; --tg-admin: #ef5350;
         }
-
         * { box-sizing: border-box; outline: none; }
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Inter', sans-serif; background: var(--tg-bg); color: var(--tg-text); overflow: hidden; }
 
+        /* AUTH SCREEN */
         #auth-screen { position: fixed; inset: 0; background: var(--tg-bg); z-index: 1000; display: flex; align-items: center; justify-content: center; }
-        .auth-card { background: var(--tg-side); padding: 40px 30px; border-radius: 20px; text-align: center; width: 90%; max-width: 360px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
-        
-        .auth-card input { width: 100%; padding: 14px; margin: 8px 0; background: #0e1621; border: 1px solid #242f3d; color: white; border-radius: 12px; font-size: 16px; text-align: center; }
-        
-        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
-        .auth-card button { flex: 1; padding: 14px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; transition: 0.3s; }
-        
-        .btn-primary { background: var(--tg-blue); color: white; }
-        .btn-secondary { background: var(--tg-active); color: var(--tg-blue); border: 1px solid var(--tg-blue) !important; }
-        .auth-card button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .auth-card { background: var(--tg-side); padding: 30px; border-radius: 20px; text-align: center; width: 90%; max-width: 360px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .auth-card input { width: 100%; padding: 12px; margin: 5px 0; background: #0e1621; border: 1px solid #242f3d; color: white; border-radius: 10px; text-align: center; }
+        .btn-main { width: 100%; padding: 12px; background: var(--tg-blue); border: none; color: white; border-radius: 10px; cursor: pointer; font-weight: 600; margin-top: 10px; }
+        .auth-toggle { margin-top: 15px; font-size: 13px; color: var(--tg-blue); cursor: pointer; }
 
-        /* Стили чата как в прошлом варианте */
-        #app { display: none; height: 100vh; grid-template-columns: 350px 1fr; }
+        /* APP LAYOUT */
+        #app { display: none; height: 100vh; grid-template-columns: 300px 1fr; }
         .sidebar { background: var(--tg-side); border-right: 1px solid #0e1621; display: flex; flex-direction: column; }
-        .side-header { padding: 15px 20px; display: flex; justify-content: space-between; border-bottom: 1px solid #0e1621; }
-        .messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 1; }
-        .chat-window { display: flex; flex-direction: column; position: relative; background: var(--tg-bg); }
-        .msg { max-width: 75%; padding: 8px 12px; border-radius: 16px; font-size: 15px; margin: 2px 0; }
+        .side-header { padding: 15px; border-bottom: 1px solid #0e1621; display: flex; justify-content: space-between; align-items: center; }
+        
+        .search-box { padding: 10px; border-bottom: 1px solid #0e1621; }
+        .search-box input { width: 100%; background: #0e1621; border: none; padding: 8px; border-radius: 8px; color: white; font-size: 13px; }
+
+        .chat-list { flex: 1; overflow-y: auto; }
+        .chat-item { padding: 12px; display: flex; align-items: center; gap: 10px; cursor: pointer; border-bottom: 1px solid rgba(0,0,0,0.1); }
+        .chat-item:hover { background: var(--tg-active); }
+        .avatar-small { width: 40px; height: 40px; background: var(--tg-blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+
+        .chat-window { display: flex; flex-direction: column; background: var(--tg-bg); }
+        .messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .msg { max-width: 70%; padding: 8px 12px; border-radius: 12px; font-size: 14px; }
         .msg.in { align-self: flex-start; background: var(--tg-in-msg); }
         .msg.out { align-self: flex-end; background: var(--tg-out-msg); }
-        .input-container { background: var(--tg-side); padding: 15px; display: flex; gap: 10px; }
-        .input-wrapper { flex: 1; background: #0e1621; border-radius: 20px; padding: 5px 15px; }
-        .input-wrapper input { background: transparent; border: none; color: white; width: 100%; padding: 8px 0; }
-        .send-btn { color: var(--tg-blue); font-weight: 600; cursor: pointer; align-self: center; }
+
+        .input-area { background: var(--tg-side); padding: 15px; display: flex; gap: 10px; }
+        .input-area input { flex: 1; background: #0e1621; border: none; padding: 10px 15px; border-radius: 20px; color: white; }
     </style>
 </head>
 <body>
 
 <div id="auth-screen">
-    <div class="auth-card">
-        <div style="font-size: 40px; margin-bottom: 10px;">✉️</div>
-        <h2>Enjol Pro</h2>
-        <p id="auth-desc" style="color: var(--tg-hint); font-size: 13px;">Введите почту для входа или регистрации</p>
-        
-        <input type="email" id="user-email" placeholder="Email (example@mail.com)">
-        <input type="text" id="user-nick" placeholder="Ваш ник (только при регистрации)">
-        
-        <div class="btn-group">
-            <button class="btn-secondary" id="reg-btn" onclick="handleAuth('reg')">Регистрация</button>
-            <button class="btn-primary" id="login-btn" onclick="handleAuth('login')">Войти</button>
-        </div>
-        <p id="info-msg" style="margin-top: 15px; font-size: 12px; color: #4caf50; display: none;"></p>
+    <div class="auth-card" id="auth-box">
+        <h2 id="auth-title">Вход</h2>
+        <input type="email" id="email" placeholder="Email">
+        <input type="text" id="nickname" placeholder="Уникальный ник (например @ferrum)" style="display:none">
+        <input type="password" id="password" placeholder="Пароль">
+        <button class="btn-main" id="main-btn" onclick="handleAuth()">Войти</button>
+        <div class="auth-toggle" onclick="toggleAuthMode()" id="toggle-text">Нет аккаунта? Регистрация</div>
+        <p id="auth-info" style="font-size: 12px; color: var(--tg-hint); margin-top: 10px;"></p>
     </div>
 </div>
 
 <div id="app">
     <div class="sidebar">
         <div class="side-header">
-            <strong>Чаты</strong>
-            <span onclick="logout()" style="cursor:pointer; color:var(--tg-hint); font-size: 12px;">Выход</span>
+            <strong id="my-name">Me</strong>
+            <span onclick="logout()" style="cursor:pointer; font-size:12px; color:var(--tg-hint);">Выход</span>
         </div>
-        <div style="padding: 20px; color: var(--tg-hint); font-size: 14px;">Общий архив</div>
+        <div class="search-box">
+            <input type="text" id="friend-search" placeholder="Добавить друга по @нику..." onkeypress="if(event.key==='Enter') addFriend()">
+        </div>
+        <div class="chat-list" id="chat-list">
+            </div>
     </div>
     <div class="chat-window">
         <div class="messages" id="msg-container"></div>
-        <div class="input-container">
-            <div class="input-wrapper"><input type="text" id="m-input" placeholder="Сообщение..."></div>
-            <div class="send-btn" onclick="sendMsg()">ОТПРАВИТЬ</div>
+        <div class="input-area">
+            <input type="text" id="m-input" placeholder="Напишите сообщение...">
+            <button class="btn-main" style="width: auto; margin:0" onclick="sendMsg()">></button>
         </div>
     </div>
 </div>
@@ -103,85 +98,130 @@
     const db = firebase.firestore();
     const auth = firebase.auth();
 
-    // 1. ПРОВЕРКА ССЫЛКИ ИЗ ПОЧТЫ
-    if (auth.isSignInWithEmailLink(window.location.href)) {
-        let email = window.localStorage.getItem('emailForSignIn');
-        if (!email) {
-            email = window.prompt('Пожалуйста, введите ваш email еще раз для подтверждения:');
-        }
-        auth.signInWithEmailLink(email, window.location.href)
-            .then((result) => {
-                window.localStorage.removeItem('emailForSignIn');
-                const nick = window.localStorage.getItem('tempNick');
-                if (nick) {
-                    result.user.updateProfile({ displayName: nick });
-                }
-            })
-            .catch((error) => alert("Ошибка входа: " + error.message));
+    let isRegMode = false;
+    let currentChatId = null;
+
+    function toggleAuthMode() {
+        isRegMode = !isRegMode;
+        document.getElementById('auth-title').innerText = isRegMode ? "Регистрация" : "Вход";
+        document.getElementById('nickname').style.display = isRegMode ? "block" : "none";
+        document.getElementById('main-btn').innerText = isRegMode ? "Создать аккаунт" : "Войти";
+        document.getElementById('toggle-text').innerText = isRegMode ? "Уже есть аккаунт? Войти" : "Нет аккаунта? Регистрация";
     }
 
-    // 2. СЛУШАТЕЛЬ ВХОДА
+    async function handleAuth() {
+        const email = document.getElementById('email').value;
+        const pass = document.getElementById('password').value;
+        const nick = document.getElementById('nickname').value.trim();
+        const info = document.getElementById('auth-info');
+
+        try {
+            if (isRegMode) {
+                // РЕГИСТРАЦИЯ
+                if (!nick.startsWith('@')) return alert("Ник должен начинаться с @");
+                const res = await auth.createUserWithEmailAndPassword(email, pass);
+                await res.user.updateProfile({ displayName: nick });
+                // Сохраняем в базу данных пользователей
+                await db.collection("users").doc(res.user.uid).set({ email, nick, uid: res.user.uid });
+                // Отправляем письмо
+                await res.user.sendEmailVerification();
+                info.innerText = "Аккаунт создан! Подтвердите почту перед входом (проверьте спам).";
+            } else {
+                // ВХОД
+                const res = await auth.signInWithEmailAndPassword(email, pass);
+                if (!res.user.emailVerified) {
+                    alert("Пожалуйста, подтвердите вашу почту!");
+                    auth.signOut();
+                }
+            }
+        } catch (e) { alert(e.message); }
+    }
+
     auth.onAuthStateChanged(user => {
-        if (user) {
+        if (user && user.emailVerified) {
             document.getElementById('auth-screen').style.display = 'none';
             document.getElementById('app').style.display = 'grid';
-            loadMessages(user.displayName);
+            document.getElementById('my-name').innerText = user.displayName;
+            loadChats();
+        } else {
+            document.getElementById('auth-screen').style.display = 'flex';
         }
     });
 
-    // 3. ОТПРАВКА ССЫЛКИ НА ПОЧТУ
-    function handleAuth(type) {
-        const email = document.getElementById('user-email').value;
-        const nick = document.getElementById('user-nick').value;
-        const info = document.getElementById('info-msg');
+    // ФУНКЦИЯ ДОБАВЛЕНИЯ В ДРУЗЬЯ (Создание чата)
+    async function addFriend() {
+        const nick = document.getElementById('friend-search').value.trim();
+        if (!nick) return;
 
-        if (!email) return alert("Введите почту!");
-        if (type === 'reg' && !nick) return alert("Для регистрации нужен ник!");
+        // Ищем пользователя по нику
+        const snapshot = await db.collection("users").where("nick", "==", nick).get();
+        if (snapshot.empty) return alert("Пользователь не найден!");
 
-        const actionCodeSettings = {
-            url: window.location.href, // Вернуться на этот же сайт после клика
-            handleCodeInApp: true
-        };
+        const friend = snapshot.docs[0].data();
+        const myUid = auth.currentUser.uid;
 
-        auth.sendSignInLinkToEmail(email, actionCodeSettings)
-            .then(() => {
-                window.localStorage.setItem('emailForSignIn', email);
-                if(type === 'reg') window.localStorage.setItem('tempNick', nick);
-                
-                info.innerText = "Письмо отправлено! Проверьте почту (и папку Спам). Ссылка действует 15 минут.";
-                info.style.display = "block";
-            })
-            .catch(error => alert(error.message));
+        // Создаем уникальный ID для чата (из двух UID)
+        const chatId = myUid < friend.uid ? myUid + "_" + friend.uid : friend.uid + "_" + myUid;
+
+        await db.collection("chats").doc(chatId).set({
+            users: [myUid, friend.uid],
+            nicks: [auth.currentUser.displayName, friend.nick],
+            lastMsg: ""
+        }, { merge: true });
+
+        alert("Чат с " + nick + " создан!");
+        document.getElementById('friend-search').value = "";
     }
 
-    // Остальные функции чата (отправка, загрузка)
-    function sendMsg() {
-        const input = document.getElementById('m-input');
-        if (!input.value.trim()) return;
-        db.collection("messages").add({
-            user: auth.currentUser.displayName || "Аноним",
-            text: input.value,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    function loadChats() {
+        db.collection("chats").where("users", "array-contains", auth.currentUser.uid)
+        .onSnapshot(snap => {
+            const list = document.getElementById('chat-list');
+            list.innerHTML = "";
+            snap.forEach(doc => {
+                const data = doc.data();
+                const friendNick = data.nicks.find(n => n !== auth.currentUser.displayName);
+                const item = document.createElement('div');
+                item.className = "chat-item";
+                item.innerHTML = `<div class="avatar-small">${friendNick[1].toUpperCase()}</div><div>${friendNick}</div>`;
+                item.onclick = () => openChat(doc.id);
+                list.appendChild(item);
+            });
         });
-        input.value = "";
     }
 
-    function loadMessages(myName) {
-        db.collection("messages").orderBy("timestamp", "asc").onSnapshot(snap => {
+    function openChat(id) {
+        currentChatId = id;
+        document.getElementById('msg-container').innerHTML = "Загрузка...";
+        db.collection("chats").doc(id).collection("messages").orderBy("timestamp", "asc")
+        .onSnapshot(snap => {
             const cont = document.getElementById('msg-container');
             cont.innerHTML = "";
             snap.forEach(doc => {
                 const d = doc.data();
+                const isOut = d.sender === auth.currentUser.uid;
                 const div = document.createElement('div');
-                div.className = `msg ${d.user === myName ? 'out' : 'in'}`;
-                div.innerHTML = `<div style="font-size:10px; opacity:0.6">${d.user}</div>${d.text}`;
+                div.className = `msg ${isOut ? 'out' : 'in'}`;
+                div.innerText = d.text;
                 cont.appendChild(div);
             });
             cont.scrollTop = cont.scrollHeight;
         });
     }
 
-    function logout() { auth.signOut().then(() => location.reload()); }
+    function sendMsg() {
+        const input = document.getElementById('m-input');
+        if (!input.value.trim() || !currentChatId) return;
+
+        db.collection("chats").doc(currentChatId).collection("messages").add({
+            text: input.value,
+            sender: auth.currentUser.uid,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        input.value = "";
+    }
+
+    function logout() { auth.signOut(); location.reload(); }
 </script>
 </body>
 </html>
