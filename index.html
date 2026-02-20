@@ -513,11 +513,10 @@
         const emoji = $('c-emoji').innerText;
         if (!name) return alert("Введите название канала");
 
-        // Создаем документ канала с правильными полями для поиска
         const channelDoc = await db.collection("chats").add({
             isChannel: true,
             name: name,
-            name_low: name.toLowerCase(), // Обязательно для работы поиска
+            name_low: name.toLowerCase(),
             emoji: emoji,
             about: about,
             owner: auth.currentUser.uid,
@@ -527,7 +526,6 @@
         });
         
         closeAllModals();
-        // Сразу открываем созданный канал
         openChat(channelDoc.id, true, { id: channelDoc.id, name, emoji, about, isChannel: true });
     }
 
@@ -718,116 +716,54 @@
         $('messages-box').scrollTop = $('messages-box').scrollHeight;
     }
 
-    // --- ЗАГРУЗКА СПИСКА ЧАТОВ (Исправлено: теперь отображает и каналы) ---
-    function loadChats() {
+    // --- ЗАГРУЗКА СПИСКА ЧАТОВ С РЕАЛЬНЫМИ НИКАМИ ---
+    async function loadChats() {
         db.collection("chats")
-            .where("users", "array-contains", auth.currentUser.uid)
-            .orderBy("timestamp", "desc")
-            .onSnapshot(async snap => {
-                const list = $('global-chat-list');
-                list.innerHTML = "";
-
-                if (snap.empty) {
-                    list.innerHTML = "<div style='text-align:center; padding:20px; color:var(--text-dim); font-size:13px;'>У вас пока нет чатов.<br>Используйте поиск или создайте канал.</div>";
-                    return;
-                }
-
-                for (const doc of snap.docs) {
-                    const chat = doc.data();
-                    const chatId = doc.id;
-                    let partnerData = null;
-
-                    if (chat.isChannel) {
-                        partnerData = { id: chatId, name: chat.name, emoji: chat.emoji, about: chat.about, isChannel: true };
-                    } else {
-                        // Для личных чатов ищем ID собеседника
-                        const partnerId = chat.users.find(id => id !== auth.currentUser.uid);
-                        if (!userCache[partnerId]) {
-                            const uDoc = await db.collection("users").doc(partnerId).get();
-                            userCache[partnerId] = uDoc.data();
-                        }
-                        partnerData = { ...userCache[partnerId], isChannel: false };
-                    }
-
-                    const div = document.createElement('div');
-                    div.className = `chat-item ${activeChatId === chatId ? 'active' : ''}`;
-                    const displayName = chat.isChannel ? `#${chat.name}` : fmtN(partnerData.nick);
-                    const lastMsg = chat.lastMsg || "Нет сообщений";
-
-                    div.innerHTML = `
-                        <div class="avatar ${chat.isChannel ? 'channel' : ''}">${partnerData.emoji || '👤'}</div>
-                        <div style="flex:1; overflow:hidden;">
-                            <div style="font-weight:700; font-size:15px; margin-bottom:4px;">${displayName}</div>
-                            <div style="font-size:13px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${lastMsg}</div>
-                        </div>
-                    `;
-                    div.onclick = () => openChat(chatId, chat.isChannel, partnerData);
-                    list.appendChild(div);
-                }
-            });
-    }
-
-    // --- ОТПРАВКА СООБЩЕНИЙ ---
-    async function sendMessage() {
-        const text = $('msg-input').value.trim();
-        if (!text || !activeChatId) return;
-
-        $('msg-input').value = "";
-        const msgData = {
-            sender: auth.currentUser.uid,
-            text: text,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        };
-
-        try {
-            // 1. Добавляем сообщение в подколлекцию
-            await db.collection("chats").doc(activeChatId).collection("messages").add(msgData);
+          .where("users", "array-contains", auth.currentUser.uid)
+          .orderBy("timestamp", "desc")
+          .onSnapshot(async snap => {
+            const list = $('global-chat-list'); 
+            list.innerHTML = "";
             
-            // 2. Обновляем метаданные чата (чтобы он поднялся в списке)
-            await db.collection("chats").doc(activeChatId).update({
-                lastMsg: text,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        } catch (e) { console.error("Send error:", e); }
-    }
+            for (const doc of snap.docs) {
+                const c = doc.data();
+                
+                let name = "Загрузка...", emoji = "⌛", pData = null;
+                
+                if (c.isChannel) { 
+                    name = '#' + c.name; emoji = c.emoji; 
+                    pData = { id: doc.id, ...c };
+                } else {
+                    const pId = c.users.find(u => u !== auth.currentUser.uid);
+                    if (!pId) continue; // Чат с самим собой пока не поддерживаем
 
-    // --- ЗАВЕРШЕНИЕ ОТРИСОВКИ СООБЩЕНИЙ (внутри openChat) ---
-    // (Код ниже интегрирован в логику snapshot сообщений)
-    async function renderMessage(change) {
-        const m = change.doc.data();
-        const isOut = m.sender === auth.currentUser.uid;
-        const box = $('messages-box');
-        
-        const d = document.createElement('div');
-        d.className = `msg ${isOut ? 'out' : 'in'}`;
-        
-        let senderName = "";
-        if (activeChatType === 'channel' && !isOut) {
-            if (!userCache[m.sender]) {
-                const uDoc = await db.collection("users").doc(m.sender).get();
-                userCache[m.sender] = uDoc.data();
+                    if (!userCache[pId]) {
+                        const uDoc = await db.collection("users").doc(pId).get();
+                        if(uDoc.exists) userCache[pId] = uDoc.data();
+                        else continue; // Юзер удален
+                    }
+                    name = fmtN(userCache[pId].nick);
+                    emoji = userCache[pId].emoji;
+                    pData = userCache[pId];
+                }
+
+                const item = document.createElement('div');
+                item.className = `chat-item ${activeChatId === doc.id ? 'active' : ''}`;
+                item.innerHTML = `
+                    <div class="avatar ${c.isChannel ? 'channel' : ''}">${emoji}</div>
+                    <div style="flex:1; overflow:hidden;">
+                        <div style="font-weight:700; font-size: 15px; margin-bottom: 4px;">${name}</div>
+                        <div style="font-size:13px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${c.lastMsg || 'Чат создан'}</div>
+                    </div>`;
+                
+                item.onclick = () => {
+                    document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
+                    item.classList.add('active');
+                    openChat(doc.id, c.isChannel, pData);
+                };
+                list.appendChild(item);
             }
-            senderName = `<span class="msg-sender">${fmtN(userCache[m.sender].nick)}</span>`;
-        }
-
-        const time = m.timestamp ? new Date(m.timestamp.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "";
-        
-        d.innerHTML = `
-            ${senderName}
-            <div>${m.text}</div>
-            <span class="msg-time">${time}</span>
-        `;
-        
-        box.appendChild(d);
-        box.scrollTop = box.scrollHeight;
-    }
-
-    // При вступлении в канал принудительно обновляем UI
-    async function joinChannel(channelId) {
-        await db.collection("chats").doc(channelId).update({
-            users: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid)
         });
-        loadChats(); // Сразу перерисовываем список
     }
 </script>
 </body>
