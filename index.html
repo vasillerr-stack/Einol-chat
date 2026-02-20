@@ -949,70 +949,84 @@
         // --- ОТРИСОВКА ЧАТА И СООБЩЕНИЙ ---
         let unsubMessages = null;
 
-        function openChat(id, isChannel, partnerData) {
+        async function openChat(id, isChannel, partnerData) {
             activeChatId = id;
             activeChatType = isChannel ? 'channel' : 'private';
-            activePartnerData = partnerData; // Сохраняем для модалки профиля
+            activePartnerData = partnerData;
 
-            $('welcome-view').style.display = 'none';
-            $('chat-header').style.display = 'flex';
-            $('chat-input-zone').style.display = 'flex';
+            // ЗАЩИТА: Проверяем наличие элементов перед тем как менять их стиль
+            const views = ['welcome-view', 'chat-header', 'chat-input-zone', 'active-profile'];
+            views.forEach(viewId => {
+                const el = $(viewId);
+                if (el) {
+                    if (viewId === 'welcome-view' || viewId === 'active-profile') el.style.display = 'none';
+                    else el.style.display = 'flex';
+                }
+            });
 
-            if (isChannel) {
-                $('active-chat-name').innerText = '#' + partnerData.name;
+            // Обновление шапки (проверяем каждый элемент)
+            if ($('active-chat-name')) {
+                $('active-chat-name').innerText = isChannel ? '#' + partnerData.name : fmtN(partnerData.nick);
+            }
+            if ($('active-chat-avatar')) {
                 $('active-chat-avatar').innerText = partnerData.emoji;
-                $('active-chat-avatar').className = "avatar channel";
-                $('active-chat-status').innerText = "ПУБЛИЧНЫЙ КАНАЛ";
-            } else {
-                $('active-chat-name').innerText = fmtN(partnerData.nick);
-                $('active-chat-avatar').innerText = partnerData.emoji;
-                $('active-chat-avatar').className = "avatar";
-                $('active-chat-status').innerText = "В СЕТИ";
+                $('active-chat-avatar').className = isChannel ? "avatar channel" : "avatar";
+            }
+            if ($('active-chat-status')) {
+                $('active-chat-status').innerText = isChannel ? "ПУБЛИЧНЫЙ КАНАЛ" : "В СЕТИ";
             }
 
-            $('main-body').classList.add('chat-open');
+            const mainBody = $('main-body');
+            if (mainBody) mainBody.classList.add('chat-open');
 
-            // Отписываемся от старого чата
+            // Очистка и подписка на сообщения
             if (unsubMessages) unsubMessages();
 
-            unsubMessages = db.collection("chats").doc(id).collection("messages").orderBy("timestamp", "asc").onSnapshot(async snap => {
-                const box = $('messages-box');
-                if (box.innerHTML.includes('welcome-view')) box.innerHTML = ''; // Очистка при первом входе
+            const box = $('messages-box');
+            if (box) box.innerHTML = ''; // Очищаем экран при переключении
 
-                // Если сообщений нет
-                if (snap.empty && box.children.length === 0) {
-                    box.innerHTML = `<div style="text-align:center; color:var(--text-dim); margin-top: 50px; font-size:14px;">Здесь пока нет сообщений.<br>Напишите первым!</div>`;
-                    return;
-                } else if (!snap.empty && box.innerHTML.includes('Здесь пока нет')) {
-                    box.innerHTML = '';
-                }
+            unsubMessages = db.collection("chats").doc(id).collection("messages")
+                .orderBy("timestamp", "asc")
+                .onSnapshot(async snap => {
+                    if (!box) return;
 
-                snap.docChanges().forEach(async change => {
-                    if (change.type === "added") {
-                        const m = change.doc.data();
-                        const isOut = m.sender === auth.currentUser.uid;
-                        const d = document.createElement('div');
-                        d.className = `msg ${isOut ? 'out' : 'in'}`;
-
-                        let senderNameHtml = '';
-                        if (isChannel && !isOut) {
-                            // В канале пытаемся подтянуть ник отправителя
-                            let sName = "User";
-                            if (userCache[m.sender]) sName = userCache[m.sender].nick;
-                            else {
-                                const uDoc = await db.collection("users").doc(m.sender).get();
-                                if (uDoc.exists) { userCache[m.sender] = uDoc.data(); sName = uDoc.data().nick; }
-                            }
-                            senderNameHtml = `<span class="msg-sender">${fmtN(sName)}</span>`;
-                        }
-
-                        const timeStr = m.timestamp ? m.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-                        d.innerHTML = `${senderNameHtml}${m.text}<span class="msg-time">${timeStr}</span>`;
-                        box.appendChild(d);
+                    if (snap.empty) {
+                        box.innerHTML = `<div style="text-align:center; color:var(--text-dim); margin-top: 50px; font-size:14px;">Здесь пока нет сообщений.<br>Напишите первым!</div>`;
+                        return;
                     }
+
+                    // Обработка новых сообщений
+                    snap.docChanges().forEach(async change => {
+                        if (change.type === "added") {
+                            // Если висит заглушка "Нет сообщений", убираем её
+                            if (box.innerHTML.includes('Здесь пока нет')) box.innerHTML = '';
+
+                            const m = change.doc.data();
+                            const isOut = m.sender === auth.currentUser.uid;
+                            const d = document.createElement('div');
+                            d.className = `msg ${isOut ? 'out' : 'in'}`;
+
+                            let senderNameHtml = '';
+                            if (isChannel && !isOut) {
+                                let sName = "User";
+                                if (userCache[m.sender]) sName = userCache[m.sender].nick;
+                                else {
+                                    const uDoc = await db.collection("users").doc(m.sender).get();
+                                    if (uDoc.exists) {
+                                        userCache[m.sender] = uDoc.data();
+                                        sName = uDoc.data().nick;
+                                    }
+                                }
+                                senderNameHtml = `<span class="msg-sender">${fmtN(sName)}</span>`;
+                            }
+
+                            const timeStr = m.timestamp ? m.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                            d.innerHTML = `${senderNameHtml}${m.text}<span class="msg-time">${timeStr}</span>`;
+                            box.appendChild(d);
+                            box.scrollTop = box.scrollHeight;
+                        }
+                    });
                 });
-                setTimeout(() => box.scrollTop = box.scrollHeight, 50); // Плавная прокрутка
-            });
         }
 
         async function sendMessage() {
